@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steganography Encrypt & Decrypt</title>
+    <script src="./js/crypto-js.js"></script>
+    <script src="./js/FileSaver.js"></script>
+    <style>
+        /* Basic Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to right, #3a6186, #89253e);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+        }
+
+        h2 {
+            margin: 20px 0;
+            font-size: 1.8rem;
+            color: #ffe6e6;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        /* Card Styles */
+        .card {
+            background: rgba(250, 243, 243, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            width: 350px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Input and Button Styles */
+        input[type="file"], input[type="text"], textarea {
+            width: 100%;
+            margin-bottom: 15px;
+            padding: 10px;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.878);
+            border-radius: 5px;
+            background: rgba(244, 240, 240, 0.415);
+            color: #fff;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border: 1px solid #ffb3b3;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            font-size: 1rem;
+            background: linear-gradient(to right, #ff5858, #f09819);
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        img {
+            max-width: 100%;
+            margin-top: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Steganography: Encrypt & Decrypt</h1>
+
+    <div class="container">
+        <!-- Encrypt Card -->
+        <div class="card">
+            <h2>Encrypt & Hide Message</h2>
+            <input type="file" accept="image/*" id="encryptFile" onchange="loadEncryptionImage(event)">
+            <textarea id="encryptMessage" placeholder="Enter your secret message"></textarea>
+            <input type="text" id="encryptSecret" placeholder="Enter your secret key">
+            <button onclick="encryptImage()">Encrypt & Hide</button>
+            <img id="encryptOutput" style="display: none;">
+            <p id="encryptionStatus"></p>
+        </div>
+
+        <!-- Decrypt Card -->
+        <div class="card">
+            <h2>Decrypt Hidden Message</h2>
+            <input type="file" accept="image/*" id="decryptFile" onchange="loadDecryptionImage(event)">
+            <input type="text" id="decryptSecret" placeholder="Enter your secret key">
+            <button onclick="decryptImage()">Decrypt</button>
+            <img id="decryptOutput" style="display: none;">
+            <p id="decryptedMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        let encryptionImageData = null;
+        let decryptionImageData = null;
+
+        // Load Image for Encryption
+        function loadEncryptionImage(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith("image/")) {
+                const img = new Image();
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        encryptionImageData = imageData;
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert("Please select a valid image file.");
+            }
+        }
+
+        // Encrypt & Hide Message
+        async function encryptImage() {
+            const message = document.getElementById('encryptMessage').value.trim();
+            const secretKey = document.getElementById('encryptSecret').value.trim();
+            const status = document.getElementById('encryptionStatus');
+
+            if (!encryptionImageData) {
+                status.textContent = 'Please select an image first.';
+                return;
+            }
+            if (!message) {
+                status.textContent = 'Please enter a secret message.';
+                return;
+            }
+            if (!secretKey) {
+                status.textContent = 'Please enter a secret key.';
+                return;
+            }
+
+            // Encrypt the message
+            const encryptedMessage = CryptoJS.AES.encrypt(message, secretKey).toString();
+            const encryptedBinary = encryptedMessage.split('').map(char =>
+                char.charCodeAt(0).toString(2).padStart(8, '0')).join('');
+
+            // Hide encrypted message in the image
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = encryptionImageData.width;
+            canvas.height = encryptionImageData.height;
+            const data = encryptionImageData.data;
+
+            // Store message length in the first 32 pixels
+            const messageLengthBinary = encryptedBinary.length.toString(2).padStart(32, '0');
+            for (let i = 0; i < messageLengthBinary.length; i++) {
+                const pixelIndex = i * 4;
+                data[pixelIndex] = (data[pixelIndex] & 254) | parseInt(messageLengthBinary[i]); // Modify LSB
+            }
+
+            // Store the encrypted message
+            for (let i = 0; i < encryptedBinary.length; i++) {
+                const pixelIndex = (32 + i) * 4;
+                data[pixelIndex] = (data[pixelIndex] & 254) | parseInt(encryptedBinary[i]); // Modify LSB
+            }
+
+            // Render the updated image
+            ctx.putImageData(encryptionImageData, 0, 0);
+            canvas.toBlob(function(blob) {
+                saveAs(blob, "stego_image.png");
+            });
+            status.textContent = 'Encryption successful! The stego image has been downloaded.';
+        }
+
+        // Load Image for Decryption
+        function loadDecryptionImage(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith("image/")) {
+                const img = new Image();
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        decryptionImageData = imageData;
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert("Please select a valid image file.");
+            }
+        }
+
+        // Decrypt Hidden Message
+        async function decryptImage() {
+            const secretKey = document.getElementById('decryptSecret').value.trim();
+            const messageDisplay = document.getElementById('decryptedMessage');
+
+            if (!decryptionImageData) {
+                messageDisplay.textContent = 'Please select an image first.';
+                return;
+            }
+            if (!secretKey) {
+                messageDisplay.textContent = 'Please enter a secret key.';
+                return;
+            }
+
+            try {
+                // Extract message length
+                const lengthBinary = extractBits(decryptionImageData, 0, 32);
+                const messageLength = parseInt(lengthBinary, 2);
+
+                // Extract the binary message
+                const messageBinary = extractBits(decryptionImageData, 32, messageLength);
+                const encryptedMessage = binaryToText(messageBinary);
+
+                // Decrypt the message
+                const bytes = CryptoJS.AES.decrypt(encryptedMessage, secretKey);
+                const decryptedMessage = bytes.toString(CryptoJS.enc.Utf8);
+
+                if (!decryptedMessage) {
+                    throw new Error('Decryption failed. Please check your secret key.');
+                }
+
+                messageDisplay.textContent = 'Decrypted Message: ' + decryptedMessage;
+            } catch (error) {
+                console.error(error);
+                messageDisplay.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Utility to extract bits (used by decryption)
+        function extractBits(imageData, startIndex, length) {
+            let binary = '';
+            const data = imageData.data;
+
+            for (let i = 0; i < length; i++) {
+                const pixelIndex = (startIndex + i) * 4;
+                binary += (data[pixelIndex] & 1);
+            }
+            return binary;
+        }
+
+        // Utility to convert binary to text
+        function binaryToText(binary) {
+            let text = '';
+            for (let i = 0; i < binary.length; i += 8) {
+                const byte = binary.substr(i, 8);
+                text += String.fromCharCode(parseInt(byte, 2));
+            }
+            return text;
+        }
+    </script>
+</body>
+</html>
